@@ -10,7 +10,6 @@ import {
   TouchableOpacity,
   TextInput,
   LayoutAnimation,
-  UIManager,
   Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -208,13 +207,6 @@ export default function HomeScreen({ navigation }) {
     );
   }, [sortedClips, searchQuery, selectedBroadcasterId]);
 
-  // Android için LayoutAnimation'ı aktif et
-  useEffect(() => {
-    if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
-      UIManager.setLayoutAnimationEnabledExperimental(true);
-    }
-  }, []);
-
   // Kategori klipleri; yayıncı seçiliyse atla (arama temizlenince selectedBroadcasterId null olunca tekrar çalışır)
   useEffect(() => {
     if (selectedBroadcasterId) return;
@@ -290,6 +282,15 @@ export default function HomeScreen({ navigation }) {
 
   const openClip = (clip) => {
     navigation.navigate('ClipDetail', { clip });
+  };
+
+  const goToProfile = () => {
+    const parent = navigation.getParent?.();
+    if (parent?.navigate) {
+      parent.navigate('Profile');
+      return;
+    }
+    navigation.navigate('Profile');
   };
 
   const toggleSection = (section) => {
@@ -429,7 +430,11 @@ export default function HomeScreen({ navigation }) {
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
       <View style={[styles.header, { paddingHorizontal }]}>
-        <View style={styles.headerLeft}>
+        <Pressable
+          onPress={goToProfile}
+          hitSlop={10}
+          style={({ pressed }) => [styles.profileHeaderButton, pressed && styles.profileHeaderButtonPressed]}
+        >
           <View style={styles.avatarWrap}>
             <Image
               source={{ uri: currentUser?.avatarUrl || 'https://static-cdn.jtvnw.net/jtv_user_pictures/xarth/404_user_70x70.png' }}
@@ -440,10 +445,9 @@ export default function HomeScreen({ navigation }) {
             )}
           </View>
           <View style={styles.headerTextWrap}>
-            <Text style={styles.headerGreeting}>Selam,</Text>
-            <Text style={styles.headerTitle}>{displayName}!</Text>
+            <Text style={styles.headerTitle}>Profil</Text>
           </View>
-        </View>
+        </Pressable>
         <TouchableOpacity
           onPress={() => setSortMenuVisible(true)}
           hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
@@ -734,10 +738,15 @@ const styles = {
     paddingTop: 16,
     paddingBottom: 12,
   },
-  headerLeft: {
+  profileHeaderButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    flex: 1,
+    borderRadius: 999,
+    paddingVertical: 4,
+    paddingRight: 10,
+  },
+  profileHeaderButtonPressed: {
+    opacity: 0.85,
   },
   avatarWrap: {
     width: 44,

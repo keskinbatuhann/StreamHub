@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import * as WebBrowser from 'expo-web-browser';
 import { NavigationContainer } from '@react-navigation/native';
+import { LogBox } from 'react-native';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { enableScreens } from 'react-native-screens';
@@ -11,6 +12,10 @@ import TwitchLoginScreen from './src/screens/Auth/TwitchLoginScreen';
 
 enableScreens(true);
 WebBrowser.maybeCompleteAuthSession();
+LogBox.ignoreLogs([
+  'SafeAreaView has been deprecated',
+  'setLayoutAnimationEnabledExperimental is currently a no-op in the New Architecture.',
+]);
 
 export default function App() {
   const [authState, setAuthState] = useState(null);
