@@ -8,6 +8,7 @@ import {
   ActivityIndicator,
   Platform,
 } from 'react-native';
+import { webCursorPointer, webHoverScaleStyle } from '../utils/webPortalStyles';
 
 const PURPLE = '#9146FF';
 
@@ -57,7 +58,11 @@ export default function CustomButton({
       onPressIn={toPressed}
       onPressOut={toReleased}
       disabled={disabled || loading}
-      style={style}
+      style={({ hovered }) => [
+        style,
+        webCursorPointer,
+        webHoverScaleStyle(hovered, 1.02),
+      ]}
       testID={testID}
     >
       <Animated.View

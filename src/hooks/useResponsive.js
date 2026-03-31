@@ -24,6 +24,10 @@ export function useResponsive() {
   const w = mounted ? width : (isWeb ? 412 : 400);
   const isWideScreen = w >= BREAKPOINTS.medium;
   const isCompact = w < BREAKPOINTS.compact;
+  /** Web/tablet: dar sütun + ortalanmış içerik (breakpoint > 768) */
+  const isWebTabletLayout = isWeb && w > BREAKPOINTS.medium;
+  /** Web portal: sol menü + ana alan (breakpoint > 1024) */
+  const isWebPortalLayout = isWeb && w > BREAKPOINTS.wide;
 
   return {
     width: w,
@@ -31,8 +35,11 @@ export function useResponsive() {
     isWeb,
     isWideScreen,
     isCompact,
-    /** Web'de içerik sütunu için max genişlik (mobil-first, büyük ekranda ortalanır) */
-    contentMaxWidth: isWeb ? BREAKPOINTS.compact : undefined,
+    isWebTabletLayout,
+    isWebPortalLayout,
+    /** Web'de tablette ortalanmış sütun; portal modda tam genişlik (layout üst katmanda) */
+    contentMaxWidth:
+      isWebTabletLayout && !isWebPortalLayout ? 1100 : undefined,
     breakpoints: BREAKPOINTS,
   };
 }

@@ -3,14 +3,15 @@ import {
   Text,
   View,
   ScrollView,
+  FlatList,
   Image,
   Pressable,
   ActivityIndicator,
   Modal,
-  TouchableOpacity,
   TextInput,
   LayoutAnimation,
   Platform,
+  useWindowDimensions,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Feather from '@expo/vector-icons/Feather';
@@ -29,6 +30,8 @@ import {
   CATEGORY_GAME_IDS,
 } from '../../api/twitch';
 import { useClips } from '../../context/ClipsContext';
+import { useResponsive } from '../../hooks/useResponsive';
+import { webCursorPointer, webHoverScaleStyle } from '../../utils/webPortalStyles';
 
 const PADDING_H = 3;
 const GRID_GAP = 8;
@@ -103,7 +106,12 @@ function ClipGridCard({ item, onPress, social }) {
   return (
     <Pressable
       onPress={() => onPress(item)}
-      style={({ pressed }) => [styles.card, pressed && styles.cardPressed]}
+      style={({ pressed, hovered }) => [
+        styles.card,
+        pressed && styles.cardPressed,
+        webCursorPointer,
+        webHoverScaleStyle(hovered, 1.02),
+      ]}
     >
       <View style={styles.thumbWrap}>
         {thumbUri ? (
@@ -170,6 +178,9 @@ function ClipGridCard({ item, onPress, social }) {
 }
 
 export default function HomeScreen({ navigation }) {
+  const { width: windowWidth } = useWindowDimensions();
+  const { isWebPortalLayout } = useResponsive();
+  const isWebWideGrid = Platform.OS === 'web' && windowWidth > 768;
   const paddingHorizontal = PADDING_H;
   const { getClipSocial, currentUser } = useClips();
 
@@ -322,6 +333,12 @@ export default function HomeScreen({ navigation }) {
     setLoading(true);
   };
 
+  const scrollListTop = () => {
+    const r = listRef.current;
+    if (r?.scrollTo) r.scrollTo({ y: 0, animated: true });
+    if (r?.scrollToOffset) r.scrollToOffset({ offset: 0, animated: true });
+  };
+
   const selectChannelForClips = async (channel) => {
     if (!channel?.id) return;
     setSelectedBroadcasterId(channel.id);
@@ -330,7 +347,7 @@ export default function HomeScreen({ navigation }) {
       const token = await getAccessToken();
       const data = await fetchClipsByBroadcaster(token, channel.id);
       setClips(Array.isArray(data) ? data : []);
-      listRef.current?.scrollTo?.({ y: 0, animated: true });
+      scrollListTop();
     } catch (_) {
       setClips([]);
     } finally {
@@ -344,7 +361,7 @@ export default function HomeScreen({ navigation }) {
     setLoading(true);
     setSelectedBroadcasterId(null);
     setSelectedCategory(categoryId);
-    listRef.current?.scrollTo?.({ y: 0, animated: true });
+    scrollListTop();
   };
 
   const selectSortOption = async (optionId) => {
@@ -433,7 +450,12 @@ export default function HomeScreen({ navigation }) {
         <Pressable
           onPress={goToProfile}
           hitSlop={10}
-          style={({ pressed }) => [styles.profileHeaderButton, pressed && styles.profileHeaderButtonPressed]}
+          style={({ pressed, hovered }) => [
+            styles.profileHeaderButton,
+            pressed && styles.profileHeaderButtonPressed,
+            webCursorPointer,
+            webHoverScaleStyle(hovered, 1.02),
+          ]}
         >
           <View style={styles.avatarWrap}>
             <Image
@@ -448,14 +470,18 @@ export default function HomeScreen({ navigation }) {
             <Text style={styles.headerTitle}>Profil</Text>
           </View>
         </Pressable>
-        <TouchableOpacity
+        <Pressable
           onPress={() => setSortMenuVisible(true)}
           hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
-          style={styles.filterButton}
+          style={({ hovered }) => [
+            styles.filterButton,
+            webCursorPointer,
+            webHoverScaleStyle(hovered, 1.02),
+          ]}
         >
           <Feather name="sliders" size={18} color="#E5E5FF" />
           <Text style={styles.sortButtonText}>Filtrele</Text>
-        </TouchableOpacity>
+        </Pressable>
       </View>
 
       <View style={[styles.searchBarWrap, { paddingHorizontal }]}>
@@ -484,92 +510,206 @@ export default function HomeScreen({ navigation }) {
       </View>
 
       <View style={styles.categoryAndListWrap}>
-        <ScrollView
-          ref={listRef}
-          style={[styles.scroll, loading && styles.scrollLoading]}
-          contentContainerStyle={[styles.listContent, { paddingHorizontal }]}
-          showsVerticalScrollIndicator={false}
-        >
-          {searchLoading && (
-            <View style={styles.channelCardWrap}>
-              <ActivityIndicator size="small" color={colors.accent} />
-            </View>
-          )}
-          {!searchLoading && searchResults.length > 0 && (
-            <Pressable
-              onPress={() => selectChannelForClips(searchResults[0])}
-              style={({ pressed }) => [styles.channelCard, pressed && styles.channelCardPressed]}
-            >
-              <Image
-                source={{ uri: searchResults[0].thumbnail_url || searchResults[0].profile_image_url }}
-                style={styles.channelCardAvatar}
-              />
-              <View style={styles.channelCardBody}>
-                <View style={styles.channelCardNameRow}>
-                  <Text style={styles.channelCardName} numberOfLines={1}>
-                    {searchResults[0].display_name || searchResults[0].broadcaster_login}
-                  </Text>
-                  {searchResults[0].is_live && (
-                    <View style={styles.liveBadge}>
-                      <Text style={styles.liveBadgeText}>CANLI</Text>
-                    </View>
-                  )}
-                </View>
-                {(searchResults[0].title || '').trim().length > 0 && (
-                  <Text style={styles.channelCardStatus} numberOfLines={1}>
-                    {searchResults[0].title}
-                  </Text>
-                )}
-                {channelStats && (
-                  <View style={styles.channelCardStats}>
-                    <Text style={styles.channelCardStatText}>
-                      {abbreviateNumber(channelStats.follower_count)} takipçi
-                    </Text>
-                    <Text style={styles.channelCardStatDot}>·</Text>
-                    <Text style={styles.channelCardStatText}>
-                      {abbreviateNumber(channelStats.view_count)} izlenme
-                    </Text>
+        {isWebPortalLayout ? (
+          <FlatList
+            ref={listRef}
+            data={filteredClips}
+            keyExtractor={(item) => item.id}
+            numColumns={3}
+            key="portal-grid-3"
+            style={[styles.scroll, loading && styles.scrollLoading]}
+            contentContainerStyle={[styles.listContent, styles.listContentPortal, { paddingHorizontal }]}
+            columnWrapperStyle={styles.gridRowPortal}
+            showsVerticalScrollIndicator
+            ListHeaderComponent={
+              <>
+                {searchLoading && (
+                  <View style={styles.channelCardWrap}>
+                    <ActivityIndicator size="small" color={colors.accent} />
                   </View>
                 )}
-                <Text style={styles.channelCardHint}>Klipleri görmek için dokun</Text>
-              </View>
-              <Feather name="chevron-right" size={22} color={colors.textSecondary} />
-            </Pressable>
-          )}
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.categoryBarContent}
-            style={styles.categoryBar}
-          >
-            {CATEGORIES.map((cat) => {
-              const isSelected = selectedCategory === cat.id;
-              return (
-                <Pressable
-                  key={cat.id}
-                  onPress={() => selectCategory(cat.id)}
-                  style={[styles.categoryChip, isSelected && styles.categoryChipSelected]}
-                >
-                  <Text
-                    style={[styles.categoryChipText, isSelected && styles.categoryChipTextSelected]}
-                    includeFontPadding={false}
+                {!searchLoading && searchResults.length > 0 && (
+                  <Pressable
+                    onPress={() => selectChannelForClips(searchResults[0])}
+                    style={({ pressed, hovered }) => [
+                      styles.channelCard,
+                      pressed && styles.channelCardPressed,
+                      webCursorPointer,
+                      webHoverScaleStyle(hovered, 1.01),
+                    ]}
                   >
-                    {cat.label}
-                  </Text>
-                </Pressable>
-              );
-            })}
-          </ScrollView>
+                    <Image
+                      source={{ uri: searchResults[0].thumbnail_url || searchResults[0].profile_image_url }}
+                      style={styles.channelCardAvatar}
+                    />
+                    <View style={styles.channelCardBody}>
+                      <View style={styles.channelCardNameRow}>
+                        <Text style={styles.channelCardName} numberOfLines={1}>
+                          {searchResults[0].display_name || searchResults[0].broadcaster_login}
+                        </Text>
+                        {searchResults[0].is_live && (
+                          <View style={styles.liveBadge}>
+                            <Text style={styles.liveBadgeText}>CANLI</Text>
+                          </View>
+                        )}
+                      </View>
+                      {(searchResults[0].title || '').trim().length > 0 && (
+                        <Text style={styles.channelCardStatus} numberOfLines={1}>
+                          {searchResults[0].title}
+                        </Text>
+                      )}
+                      {channelStats && (
+                        <View style={styles.channelCardStats}>
+                          <Text style={styles.channelCardStatText}>
+                            {abbreviateNumber(channelStats.follower_count)} takipçi
+                          </Text>
+                          <Text style={styles.channelCardStatDot}>·</Text>
+                          <Text style={styles.channelCardStatText}>
+                            {abbreviateNumber(channelStats.view_count)} izlenme
+                          </Text>
+                        </View>
+                      )}
+                      <Text style={styles.channelCardHint}>Klipleri görmek için dokun</Text>
+                    </View>
+                    <Feather name="chevron-right" size={22} color={colors.textSecondary} />
+                  </Pressable>
+                )}
+                <ScrollView
+                  horizontal
+                  showsHorizontalScrollIndicator={false}
+                  contentContainerStyle={styles.categoryBarContent}
+                  style={styles.categoryBar}
+                >
+                  {CATEGORIES.map((cat) => {
+                    const isSelected = selectedCategory === cat.id;
+                    return (
+                      <Pressable
+                        key={cat.id}
+                        onPress={() => selectCategory(cat.id)}
+                        style={({ hovered }) => [
+                          styles.categoryChip,
+                          isSelected && styles.categoryChipSelected,
+                          webCursorPointer,
+                          webHoverScaleStyle(hovered, 1.03),
+                        ]}
+                      >
+                        <Text
+                          style={[styles.categoryChipText, isSelected && styles.categoryChipTextSelected]}
+                          includeFontPadding={false}
+                        >
+                          {cat.label}
+                        </Text>
+                      </Pressable>
+                    );
+                  })}
+                </ScrollView>
+              </>
+            }
+            renderItem={({ item }) => (
+              <View style={styles.cellPortal}>
+                <ClipGridCard item={item} onPress={openClip} social={getClipSocial(item.id)} />
+              </View>
+            )}
+            ListFooterComponent={<View style={{ height: 40 }} />}
+          />
+        ) : (
+          <ScrollView
+            ref={listRef}
+            style={[styles.scroll, loading && styles.scrollLoading]}
+            contentContainerStyle={[styles.listContent, { paddingHorizontal }]}
+            showsVerticalScrollIndicator={false}
+          >
+            {searchLoading && (
+              <View style={styles.channelCardWrap}>
+                <ActivityIndicator size="small" color={colors.accent} />
+              </View>
+            )}
+            {!searchLoading && searchResults.length > 0 && (
+              <Pressable
+                onPress={() => selectChannelForClips(searchResults[0])}
+                style={({ pressed, hovered }) => [
+                  styles.channelCard,
+                  pressed && styles.channelCardPressed,
+                  webCursorPointer,
+                  webHoverScaleStyle(hovered, 1.01),
+                ]}
+              >
+                <Image
+                  source={{ uri: searchResults[0].thumbnail_url || searchResults[0].profile_image_url }}
+                  style={styles.channelCardAvatar}
+                />
+                <View style={styles.channelCardBody}>
+                  <View style={styles.channelCardNameRow}>
+                    <Text style={styles.channelCardName} numberOfLines={1}>
+                      {searchResults[0].display_name || searchResults[0].broadcaster_login}
+                    </Text>
+                    {searchResults[0].is_live && (
+                      <View style={styles.liveBadge}>
+                        <Text style={styles.liveBadgeText}>CANLI</Text>
+                      </View>
+                    )}
+                  </View>
+                  {(searchResults[0].title || '').trim().length > 0 && (
+                    <Text style={styles.channelCardStatus} numberOfLines={1}>
+                      {searchResults[0].title}
+                    </Text>
+                  )}
+                  {channelStats && (
+                    <View style={styles.channelCardStats}>
+                      <Text style={styles.channelCardStatText}>
+                        {abbreviateNumber(channelStats.follower_count)} takipçi
+                      </Text>
+                      <Text style={styles.channelCardStatDot}>·</Text>
+                      <Text style={styles.channelCardStatText}>
+                        {abbreviateNumber(channelStats.view_count)} izlenme
+                      </Text>
+                    </View>
+                  )}
+                  <Text style={styles.channelCardHint}>Klipleri görmek için dokun</Text>
+                </View>
+                <Feather name="chevron-right" size={22} color={colors.textSecondary} />
+              </Pressable>
+            )}
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.categoryBarContent}
+              style={styles.categoryBar}
+            >
+              {CATEGORIES.map((cat) => {
+                const isSelected = selectedCategory === cat.id;
+                return (
+                  <Pressable
+                    key={cat.id}
+                    onPress={() => selectCategory(cat.id)}
+                    style={({ hovered }) => [
+                      styles.categoryChip,
+                      isSelected && styles.categoryChipSelected,
+                      webCursorPointer,
+                      webHoverScaleStyle(hovered, 1.03),
+                    ]}
+                  >
+                    <Text
+                      style={[styles.categoryChipText, isSelected && styles.categoryChipTextSelected]}
+                      includeFontPadding={false}
+                    >
+                      {cat.label}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </ScrollView>
 
-        <View style={styles.grid}>
-          {filteredClips.map((clip) => (
-            <View key={clip.id} style={styles.cell}>
-              <ClipGridCard item={clip} onPress={openClip} social={getClipSocial(clip.id)} />
+            <View style={styles.grid}>
+              {filteredClips.map((clip) => (
+                <View key={clip.id} style={[styles.cell, isWebWideGrid && styles.cellWeb]}>
+                  <ClipGridCard item={clip} onPress={openClip} social={getClipSocial(clip.id)} />
+                </View>
+              ))}
             </View>
-          ))}
-        </View>
-        <View style={{ height: 40 }}></View>
-        </ScrollView>
+            <View style={{ height: 40 }}></View>
+          </ScrollView>
+        )}
       </View>
 
       {/* Filtrele Modal - Kademeli (Nested) Seçim */}
@@ -962,6 +1102,19 @@ const styles = {
     paddingTop: 12,    // kategori ile klipler arasında hafif boşluk
     paddingBottom: 40,
   },
+  listContentPortal: {
+    flexGrow: 1,
+  },
+  gridRowPortal: {
+    justifyContent: 'space-between',
+    gap: GRID_GAP,
+    marginBottom: GRID_GAP,
+  },
+  cellPortal: {
+    flex: 1,
+    minWidth: 0,
+    paddingHorizontal: 6,
+  },
   grid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
@@ -970,6 +1123,10 @@ const styles = {
   cell: {
     width: '48%',
     marginBottom: GRID_GAP,
+  },
+  cellWeb: {
+    width: '30%',
+    maxWidth: '30%',
   },
   repostBadge: {
     flexDirection: 'row',

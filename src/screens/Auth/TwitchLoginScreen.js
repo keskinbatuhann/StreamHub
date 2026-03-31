@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, forwardRef, useImperativeHandle, useCallback } from 'react';
 import { View, Text, StyleSheet, Pressable, Platform } from 'react-native';
 import Feather from '@expo/vector-icons/Feather';
 import * as AuthSession from 'expo-auth-session';
@@ -8,9 +8,28 @@ const TWITCH_CLIENT_ID = '65buha7i8z8g0lo6wyg3i1ebuh8ekq';
 const TWITCH_AUTH_ENDPOINT = 'https://id.twitch.tv/oauth2/authorize';
 const TWITCH_USER_ENDPOINT = 'https://api.twitch.tv/helix/users';
 
-export default function TwitchLoginScreen({ onLoggedIn, onAdminLogin }) {
+async function fetchTwitchUser(accessToken) {
+  try {
+    const res = await fetch(TWITCH_USER_ENDPOINT, {
+      headers: {
+        'Client-Id': TWITCH_CLIENT_ID,
+        Authorization: `Bearer ${accessToken}`,
+      },
+    });
+    if (!res.ok) {
+      throw new Error(`Twitch users error: ${res.status}`);
+    }
+    const json = await res.json();
+    const user = Array.isArray(json.data) && json.data.length > 0 ? json.data[0] : null;
+    return user;
+  } catch (e) {
+    console.warn('fetchTwitchUser error', e);
+    return null;
+  }
+}
+
+function TwitchLoginScreenInner({ onLoggedIn, onAdminLogin }, ref) {
   const redirectUri = AuthSession.makeRedirectUri({
-    // Expo Go + standalone için güvenli varsayılan
     useProxy: true,
   });
 
@@ -45,10 +64,12 @@ export default function TwitchLoginScreen({ onLoggedIn, onAdminLogin }) {
     }
   }, [response, onLoggedIn]);
 
-  const handleLogin = () => {
+  const handleLogin = useCallback(() => {
     if (!request) return;
     promptAsync({ useProxy: true, showInRecents: true });
-  };
+  }, [request, promptAsync]);
+
+  useImperativeHandle(ref, () => ({ triggerLogin: handleLogin }), [handleLogin]);
 
   return (
     <View style={styles.container}>
@@ -62,9 +83,7 @@ export default function TwitchLoginScreen({ onLoggedIn, onAdminLogin }) {
         </Pressable>
       )}
       <Text style={styles.title}>StreamHub</Text>
-      <Text style={styles.subtitle}>
-        Devam etmek için giriş yöntemini seç.
-      </Text>
+      <Text style={styles.subtitle}>Devam etmek için giriş yöntemini seç.</Text>
 
       <View style={styles.buttonsWrap}>
         <CustomButton
@@ -73,11 +92,7 @@ export default function TwitchLoginScreen({ onLoggedIn, onAdminLogin }) {
           disabled={!request}
           loading={!request}
           style={styles.loginButtonWrap}
-          icon={
-            request ? (
-              <Feather name="log-in" size={20} color="#FFFFFF" />
-            ) : null
-          }
+          icon={request ? <Feather name="log-in" size={20} color="#FFFFFF" /> : null}
         />
 
         {!!onAdminLogin && (
@@ -92,32 +107,16 @@ export default function TwitchLoginScreen({ onLoggedIn, onAdminLogin }) {
 
       {Platform.OS === 'web' && (
         <Text style={styles.footerTextSmall}>
-          Web’de pop-up engelleyiciler açık ise, Twitch girişinden sonra adres çubuğunu kontrol et.
+          {`Web'de pop-up engelleyiciler açık ise, Twitch girişinden sonra adres çubuğunu kontrol et.`}
         </Text>
       )}
     </View>
   );
 }
 
-async function fetchTwitchUser(accessToken) {
-  try {
-    const res = await fetch(TWITCH_USER_ENDPOINT, {
-      headers: {
-        'Client-Id': TWITCH_CLIENT_ID,
-        Authorization: `Bearer ${accessToken}`,
-      },
-    });
-    if (!res.ok) {
-      throw new Error(`Twitch users error: ${res.status}`);
-    }
-    const json = await res.json();
-    const user = Array.isArray(json.data) && json.data.length > 0 ? json.data[0] : null;
-    return user;
-  } catch (e) {
-    console.warn('fetchTwitchUser error', e);
-    return null;
-  }
-}
+const TwitchLoginScreen = forwardRef(TwitchLoginScreenInner);
+
+export default TwitchLoginScreen;
 
 const styles = StyleSheet.create({
   container: {
@@ -167,6 +166,13 @@ const styles = StyleSheet.create({
     color: 'rgba(255,255,255,0.5)',
     textAlign: 'center',
   },
+  footerTextSmall: {
+    fontSize: 11,
+    marginTop: 16,
+    color: 'rgba(255,255,255,0.5)',
+    textAlign: 'center',
+    paddingHorizontal: 8,
+  },
   adminButton: {
     width: '100%',
     paddingVertical: 10,
@@ -185,4 +191,3 @@ const styles = StyleSheet.create({
     color: 'rgba(255,255,255,0.8)',
   },
 });
-

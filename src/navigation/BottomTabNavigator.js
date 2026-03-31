@@ -18,13 +18,15 @@ const tabIcons = {
 };
 
 export default function BottomTabNavigator() {
-  const { isWeb, isWideScreen } = useResponsive();
-  const tabBarOnTop = isWeb && isWideScreen;
+  const { isWeb, isWideScreen, isWebPortalLayout } = useResponsive();
+  const tabBarOnTop = isWeb && isWideScreen && !isWebPortalLayout;
+  const hideTabBar = isWebPortalLayout;
 
   return (
     <Tab.Navigator
       initialRouteName="LastNight"
       tabBarPosition={tabBarOnTop ? 'top' : 'bottom'}
+      tabBar={hideTabBar ? () => null : undefined}
       screenOptions={({ route }) => {
         const icons = tabIcons[route.name] || tabIcons.Home;
         const isFloating = !tabBarOnTop && Platform.OS !== 'web';

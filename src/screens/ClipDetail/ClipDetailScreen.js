@@ -11,13 +11,13 @@ import {
 } from 'react-native';
 import Animated, { FadeIn } from 'react-native-reanimated';
 import { WebView } from 'react-native-webview';
-import Constants from 'expo-constants';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import Feather from '@expo/vector-icons/Feather';
 import LottieView from 'lottie-react-native';
 import { colors } from '../../constants/theme';
 import { abbreviateNumber } from '../../utils/format';
 import { useClips } from '../../context/ClipsContext';
+import { getTwitchEmbedParent, withTwitchEmbedParent } from '../../utils/twitchEmbed';
 
 const STORAGE_PREFIX = 'streamhub_clip_';
 const GOLD = '#FFD700';
@@ -52,33 +52,10 @@ async function saveClipData(clipId, data) {
   } catch (_) {}
 }
 
-/**
- * Twitch embed "parent" parametresi: yüklendiği host ile eşleşmeli.
- * .env'de EXPO_PUBLIC_TWITCH_EMBED_PARENT tanımlıysa onu kullan (örn. kendi domain'in).
- */
-function getTwitchEmbedParent() {
-  const envParent = process.env.EXPO_PUBLIC_TWITCH_EMBED_PARENT;
-  if (envParent && typeof envParent === 'string' && envParent.trim()) {
-    return envParent.trim();
-  }
-  if (Platform.OS === 'web' && typeof window !== 'undefined' && window.location?.hostname) {
-    return window.location.hostname;
-  }
-  try {
-    const hostUri = Constants.expoConfig?.hostUri ?? Constants.linkingUri ?? '';
-    const match = hostUri.match(/^(?:exp|exps?):\/\/([^:/]+)/);
-    if (match && match[1]) return match[1];
-  } catch (_) {}
-  return 'localhost';
-}
-
 // TwitchPlayer: Web'de iframe, mobilde WebView (HTML + baseUrl).
 function TwitchPlayer({ embedUrl, embedParent, style, onLoadEnd }) {
   if (!embedUrl) return null;
-  const url =
-    embedUrl +
-    (embedUrl.includes('?') ? '&' : '?') +
-    `parent=${encodeURIComponent(embedParent)}`;
+  const url = withTwitchEmbedParent(embedUrl, embedParent);
 
   if (Platform.OS === 'web') {
     return React.createElement('iframe', {

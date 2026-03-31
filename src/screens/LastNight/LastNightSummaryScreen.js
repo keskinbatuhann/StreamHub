@@ -18,31 +18,17 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useVideoPlayer, VideoView } from 'expo-video';
 import { WebView } from 'react-native-webview';
-import Constants from 'expo-constants';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { LinearGradient } from 'expo-linear-gradient';
+import { BlurView } from 'expo-blur';
+import Slider from '@react-native-community/slider';
 
 import { colors } from '../../constants/theme';
 import { abbreviateNumber, formatDateDayMonthYear } from '../../utils/format';
 import { useClipsData } from '../../hooks/useClipsData';
-
-/** Platform ayrımı: Web'de site adı (örn. clipqueue.vercel.app), mobilde localhost. */
-function getTwitchEmbedParent() {
-  const envParent = process.env.EXPO_PUBLIC_TWITCH_EMBED_PARENT;
-  if (envParent && typeof envParent === 'string' && envParent.trim()) return envParent.trim();
-  const currentParent =
-    Platform.OS === 'web' && typeof window !== 'undefined' && window.location?.hostname
-      ? window.location.hostname
-      : 'localhost';
-  if (Platform.OS === 'web') return currentParent;
-  if (Platform.OS === 'android' || Platform.OS === 'ios') return 'localhost';
-  try {
-    const hostUri = Constants.expoConfig?.hostUri ?? Constants.linkingUri ?? '';
-    const match = hostUri.match(/^(?:exp|exps?):\/\/([^:/]+)/);
-    if (match && match[1]) return match[1];
-  } catch (_) {}
-  return 'localhost';
-}
+import { useResponsive } from '../../hooks/useResponsive';
+import { getTwitchEmbedParent } from '../../utils/twitchEmbed';
+import { webCursorPointer, webHoverScaleStyle } from '../../utils/webPortalStyles';
 
 /** Twitch VOD id'si sadece rakam; klip id'si alfanumerik slug. */
 function isTwitchClip(item) {
@@ -272,6 +258,7 @@ function ClipCardItem({
   isPlayingInline,
   onStartInlinePlay,
   onStopInlinePlay,
+  webPortalLayout,
 }) {
   const thumb = thumbnailUrl(item.thumbnail_url);
   const videoUri = getClipVideoUri(item);
@@ -290,11 +277,13 @@ function ClipCardItem({
     }
   }, [isPlayingInline, videoUri, item, onStartInlinePlay, onStopInlinePlay, onOpenModal]);
 
+  const heroPortal = !!(webPortalLayout && isPlayingInline && videoUri);
+
   return (
-    <View style={styles.card}>
+    <View style={[styles.card, heroPortal && styles.cardPortalHero]}>
       <Pressable
         onPress={handleThumbPress}
-        style={styles.cardThumbWrap}
+        style={[styles.cardThumbWrap, heroPortal && styles.cardThumbWrapPortal]}
       >
         {isPlayingInline && videoUri ? (
           <InlineClipVideo videoUri={videoUri} />
@@ -316,7 +305,10 @@ function ClipCardItem({
           </Pressable>
         )}
       </Pressable>
-      <Pressable style={styles.cardBody} onPress={() => onOpenModal(item)}>
+      <Pressable
+        style={[styles.cardBody, heroPortal && styles.cardBodyPortal]}
+        onPress={() => onOpenModal(item)}
+      >
         <Text style={styles.cardTitle} numberOfLines={2}>
           {title}
         </Text>
@@ -356,6 +348,7 @@ export default function LastNightSummaryScreen({ navigation }) {
     based: 0,
   });
   const [dateRange, setDateRange] = useState('yesterday'); // 'yesterday' | 'week'
+  const { isWebPortalLayout } = useResponsive();
 
   const sorted = useMemo(() => {
     const list = [...clips].filter((c) => {
@@ -473,6 +466,7 @@ export default function LastNightSummaryScreen({ navigation }) {
         isPlayingInline={playingClipId === item.id}
         onStartInlinePlay={startInlinePlay}
         onStopInlinePlay={stopInlinePlay}
+        webPortalLayout={false}
       />
     ),
     [playingClipId, openClipDetail, startInlinePlay, stopInlinePlay]
@@ -494,6 +488,7 @@ export default function LastNightSummaryScreen({ navigation }) {
   }, []);
 
   const isWeb = Platform.OS === 'web';
+  const queueWebWide = isWebPortalLayout;
 
   const contentArea = loading ? (
         <View style={styles.loadingWrap}>
@@ -536,6 +531,7 @@ export default function LastNightSummaryScreen({ navigation }) {
                     isPlayingInline={playingClipId === item.id}
                     onStartInlinePlay={startInlinePlay}
                     onStopInlinePlay={stopInlinePlay}
+                    webPortalLayout={isWebPortalLayout}
                   />
                 </View>
               ))}
@@ -573,13 +569,23 @@ export default function LastNightSummaryScreen({ navigation }) {
           <View style={styles.filterRow}>
             <Pressable
               onPress={() => setSortOrder('popular')}
-              style={[styles.sortPill, sortOrder === 'popular' && styles.sortPillActive]}
+              style={({ hovered }) => [
+                styles.sortPill,
+                sortOrder === 'popular' && styles.sortPillActive,
+                webCursorPointer,
+                webHoverScaleStyle(hovered, 1.03),
+              ]}
             >
               <Text style={[styles.sortPillText, sortOrder === 'popular' && styles.sortPillTextActive]}>En Popüler</Text>
             </Pressable>
             <Pressable
               onPress={() => setSortOrder('leastPopular')}
-              style={[styles.sortPill, sortOrder === 'leastPopular' && styles.sortPillActive]}
+              style={({ hovered }) => [
+                styles.sortPill,
+                sortOrder === 'leastPopular' && styles.sortPillActive,
+                webCursorPointer,
+                webHoverScaleStyle(hovered, 1.03),
+              ]}
             >
               <Text style={[styles.sortPillText, sortOrder === 'leastPopular' && styles.sortPillTextActive]}>En Az Popüler</Text>
             </Pressable>
@@ -590,13 +596,23 @@ export default function LastNightSummaryScreen({ navigation }) {
           <View style={styles.filterRow}>
             <Pressable
               onPress={() => setDateRange('yesterday')}
-              style={[styles.sortPill, dateRange === 'yesterday' && styles.sortPillActive]}
+              style={({ hovered }) => [
+                styles.sortPill,
+                dateRange === 'yesterday' && styles.sortPillActive,
+                webCursorPointer,
+                webHoverScaleStyle(hovered, 1.03),
+              ]}
             >
               <Text style={[styles.sortPillText, dateRange === 'yesterday' && styles.sortPillTextActive]}>Dün</Text>
             </Pressable>
             <Pressable
               onPress={() => setDateRange('week')}
-              style={[styles.sortPill, dateRange === 'week' && styles.sortPillActive]}
+              style={({ hovered }) => [
+                styles.sortPill,
+                dateRange === 'week' && styles.sortPillActive,
+                webCursorPointer,
+                webHoverScaleStyle(hovered, 1.03),
+              ]}
             >
               <Text style={[styles.sortPillText, dateRange === 'week' && styles.sortPillTextActive]}>Son 1 Hafta</Text>
             </Pressable>
@@ -625,7 +641,7 @@ export default function LastNightSummaryScreen({ navigation }) {
           <Text style={styles.addClipButtonText}>Klip Ekle</Text>
         </TouchableOpacity>
       </View>
-      {!isWeb && (
+      {(!isWeb || isWebPortalLayout) && (
         <ScrollView
           horizontal
           showsHorizontalScrollIndicator={false}
@@ -638,7 +654,12 @@ export default function LastNightSummaryScreen({ navigation }) {
               <Pressable
                 key={cat.id}
                 onPress={() => setActiveCategory(cat.id)}
-                style={[styles.filterChip, { backgroundColor: isActive ? PILL_SELECTED : PILL_UNSELECTED }]}
+                style={({ hovered }) => [
+                  styles.filterChip,
+                  { backgroundColor: isActive ? PILL_SELECTED : PILL_UNSELECTED },
+                  webCursorPointer,
+                  webHoverScaleStyle(hovered, 1.04),
+                ]}
               >
                 <Text style={styles.filterChipText}>{CATEGORY_EMOJI[cat.id] || ''} {cat.label}</Text>
               </Pressable>
@@ -651,7 +672,12 @@ export default function LastNightSummaryScreen({ navigation }) {
 
   return (
     <SafeAreaView style={styles.container} edges={['top', 'left', 'right']}>
-      {isWeb ? (
+      {isWebPortalLayout ? (
+        <View style={styles.portalMainSingle}>
+          {headerBlock}
+          {contentArea}
+        </View>
+      ) : isWeb ? (
         <View style={styles.webLayout}>
           <View style={styles.sidebar}>
             <Text style={styles.sidebarTitle}>Kategoriler</Text>
@@ -661,7 +687,12 @@ export default function LastNightSummaryScreen({ navigation }) {
                 <Pressable
                   key={cat.id}
                   onPress={() => setActiveCategory(cat.id)}
-                  style={[styles.sidebarItem, isActive && styles.sidebarItemActive]}
+                  style={({ hovered }) => [
+                    styles.sidebarItem,
+                    isActive && styles.sidebarItemActive,
+                    webCursorPointer,
+                    webHoverScaleStyle(hovered, 1.02),
+                  ]}
                 >
                   <Text style={styles.sidebarItemText}>
                     {CATEGORY_EMOJI[cat.id] || ''} {cat.label}
@@ -771,27 +802,31 @@ export default function LastNightSummaryScreen({ navigation }) {
             >
               <Ionicons name="chevron-down" size={26} color="rgba(255,255,255,0.92)" />
             </Pressable>
-            <View style={styles.queueHeaderCenter} pointerEvents="none">
-              <Text style={styles.queueHeaderEyebrow}>Gece özeti</Text>
-              <Text style={styles.queueHeaderTitle} numberOfLines={1}>
-                {currentQueueClip?.title || 'Klip'}
-              </Text>
-              {currentQueueClip && (
-                <Text style={styles.queueHeaderSub} numberOfLines={1}>
-                  {currentQueueClip.broadcaster_name || 'Yayıncı'}
-                  {' · '}
-                  {abbreviateNumber(currentQueueClip.view_count ?? 0)} izlenme
+            {!queueWebWide ? (
+              <View style={styles.queueHeaderCenter} pointerEvents="none">
+                <Text style={styles.queueHeaderEyebrow}>Gece özeti</Text>
+                <Text style={styles.queueHeaderTitle} numberOfLines={1}>
+                  {currentQueueClip?.title || 'Klip'}
                 </Text>
-              )}
-            </View>
+                {currentQueueClip && (
+                  <Text style={styles.queueHeaderSub} numberOfLines={1}>
+                    {currentQueueClip.broadcaster_name || 'Yayıncı'}
+                    {' · '}
+                    {abbreviateNumber(currentQueueClip.view_count ?? 0)} izlenme
+                  </Text>
+                )}
+              </View>
+            ) : (
+              <View style={styles.queueHeaderCenterSpacer} />
+            )}
             <Pressable onPress={closePlayAll} hitSlop={8} style={styles.queueHeaderKapat}>
               <Text style={styles.queueHeaderKapatText}>Kapat</Text>
             </Pressable>
           </View>
 
-          <View style={styles.queueModalBody}>
-            <View style={styles.queuePlayerCard}>
-              <View style={styles.queueVideoArea}>
+          <View style={[styles.queueModalBody, queueWebWide && styles.queueModalBodyWeb]}>
+            <View style={[styles.queuePlayerCard, queueWebWide && styles.queuePlayerCardWeb]}>
+              <View style={[styles.queueVideoArea, queueWebWide && styles.queueVideoAreaWeb]}>
                 {currentQueueClip && (
                   <QueueClipPlayer
                     clip={currentQueueClip}
@@ -803,67 +838,46 @@ export default function LastNightSummaryScreen({ navigation }) {
                 )}
               </View>
               {playAllQueue && playAllQueue.length > 0 && (
-                <LinearGradient
-                  colors={['transparent', 'rgba(8,6,18,0.92)', '#100e1a']}
-                  locations={[0, 0.45, 1]}
-                  style={styles.queueDockGradient}
-                >
-                  <View style={styles.queueDockTop}>
-                    <View style={styles.queueProgressTrack}>
-                      <LinearGradient
-                        colors={[PURPLE, '#b47fff']}
-                        start={{ x: 0, y: 0 }}
-                        end={{ x: 1, y: 0 }}
-                        style={[
-                          styles.queueProgressFill,
-                          {
-                            width: `${Math.max(
-                              4,
-                              ((queueIndex + 1) / playAllQueue.length) * 100
-                            )}%`,
-                          },
-                        ]}
+                queueWebWide ? (
+                  <View style={styles.queueWebSidePanel}>
+                    <View style={styles.queueWebSideMeta}>
+                      <Text style={styles.queueHeaderEyebrow}>Gece özeti</Text>
+                      <Text style={styles.queueWebSideTitle} numberOfLines={3}>
+                        {currentQueueClip?.title || 'Klip'}
+                      </Text>
+                      {currentQueueClip && (
+                        <Text style={styles.queueWebSideSub} numberOfLines={2}>
+                          {currentQueueClip.broadcaster_name || 'Yayıncı'}
+                          {' · '}
+                          {abbreviateNumber(currentQueueClip.view_count ?? 0)} izlenme
+                        </Text>
+                      )}
+                    </View>
+                    <View style={styles.queueDockWebWrap}>
+                      <QueueModeDock
+                        playAllQueue={playAllQueue}
+                        queueIndex={queueIndex}
+                        onIndexChange={setQueueIndex}
+                        goPrevInQueue={goPrevInQueue}
+                        goNextInQueue={goNextInQueue}
+                        hasPrevInQueue={hasPrevInQueue}
+                        hasNextInQueue={hasNextInQueue}
                       />
                     </View>
-                    <Text style={styles.queueDockCounter}>
-                      {String(queueIndex + 1).padStart(2, '0')}
-                      <Text style={styles.queueDockCounterDim}> / {String(playAllQueue.length).padStart(2, '0')}</Text>
-                    </Text>
                   </View>
-                  <View style={styles.queueDockControls}>
-                    <Pressable
-                      onPress={goPrevInQueue}
-                      disabled={!hasPrevInQueue}
-                      style={({ pressed }) => [
-                        styles.queueGlassBtn,
-                        !hasPrevInQueue && styles.queueGlassBtnDisabled,
-                        pressed && hasPrevInQueue && styles.queueGlassBtnPressed,
-                      ]}
-                    >
-                      <Ionicons name="play-skip-back" size={22} color="#fff" />
-                    </Pressable>
-                    <Pressable
-                      onPress={goNextInQueue}
-                      style={({ pressed }) => [styles.queueNextPillWrap, pressed && { opacity: 0.92 }]}
-                    >
-                      <LinearGradient
-                        colors={[PURPLE, '#6d28d9']}
-                        start={{ x: 0, y: 0 }}
-                        end={{ x: 1, y: 0 }}
-                        style={styles.queueNextPill}
-                      >
-                        <Text style={styles.queueNextPillText}>
-                          {hasNextInQueue ? 'Sonraki klip' : 'Özeti bitir'}
-                        </Text>
-                        <Ionicons
-                          name={hasNextInQueue ? 'chevron-forward' : 'checkmark-circle'}
-                          size={22}
-                          color="#fff"
-                        />
-                      </LinearGradient>
-                    </Pressable>
+                ) : (
+                  <View style={styles.queueDockFloatingWrap}>
+                    <QueueModeDock
+                      playAllQueue={playAllQueue}
+                      queueIndex={queueIndex}
+                      onIndexChange={setQueueIndex}
+                      goPrevInQueue={goPrevInQueue}
+                      goNextInQueue={goNextInQueue}
+                      hasPrevInQueue={hasPrevInQueue}
+                      hasNextInQueue={hasNextInQueue}
+                    />
                   </View>
-                </LinearGradient>
+                )
               )}
             </View>
           </View>
@@ -997,7 +1011,6 @@ function QueueNativeVideo({ videoUri, onNext, onReact, queueCardMode }) {
           nativeControls
           fullscreenOptions={{ enable: true }}
         />
-        <EmoteBar onReact={onReact} />
       </View>
     );
   }
@@ -1012,6 +1025,101 @@ function QueueNativeVideo({ videoUri, onNext, onReact, queueCardMode }) {
       />
       <EmoteBar onReact={onReact} />
     </View>
+  );
+}
+
+function QueueDockSlider({ queueLength, queueIndex, onIndexChange }) {
+  const maxIdx = Math.max(0, queueLength - 1);
+  return (
+    <Slider
+      style={styles.queueSlider}
+      minimumValue={0}
+      maximumValue={maxIdx}
+      value={queueIndex}
+      step={1}
+      minimumTrackTintColor={PURPLE}
+      maximumTrackTintColor="rgba(255,255,255,0.14)"
+      thumbTintColor="#FFFFFF"
+      trackStyle={styles.queueSliderTrackStyle}
+      thumbStyle={styles.queueSliderThumbStyle}
+      onSlidingComplete={(v) => onIndexChange(Math.round(v))}
+    />
+  );
+}
+
+function QueueModeDock({
+  playAllQueue,
+  queueIndex,
+  onIndexChange,
+  goPrevInQueue,
+  goNextInQueue,
+  hasPrevInQueue,
+  hasNextInQueue,
+}) {
+  const inner = (
+    <View style={styles.queueDockGlassInner}>
+      <View style={styles.queueDockTop}>
+        <QueueDockSlider
+          queueLength={playAllQueue.length}
+          queueIndex={queueIndex}
+          onIndexChange={onIndexChange}
+        />
+        <Text style={styles.queueDockCounter}>
+          {String(queueIndex + 1).padStart(2, '0')}
+          <Text style={styles.queueDockCounterDim}>
+            {' '}
+            / {String(playAllQueue.length).padStart(2, '0')}
+          </Text>
+        </Text>
+      </View>
+      <View style={styles.queueDockControls}>
+        <Pressable
+          onPress={goPrevInQueue}
+          disabled={!hasPrevInQueue}
+          style={({ pressed }) => [
+            styles.queueGlassBtn,
+            !hasPrevInQueue && styles.queueGlassBtnDisabled,
+            pressed && hasPrevInQueue && styles.queueGlassBtnPressed,
+          ]}
+        >
+          <Ionicons name="play-skip-back" size={22} color="#fff" />
+        </Pressable>
+        <Pressable
+          onPress={goNextInQueue}
+          hitSlop={{ top: 10, bottom: 10, left: 8, right: 8 }}
+          style={({ pressed }) => [styles.queueNextPillWrap, pressed && { opacity: 0.92 }]}
+        >
+          <LinearGradient
+            colors={[PURPLE, '#6d28d9']}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 0 }}
+            style={styles.queueNextPill}
+          >
+            <Text style={styles.queueNextPillText}>
+              {hasNextInQueue ? 'Sonraki klip' : 'Özeti bitir'}
+            </Text>
+            <Ionicons
+              name={hasNextInQueue ? 'chevron-forward' : 'checkmark-circle'}
+              size={12}
+              color="#fff"
+            />
+          </LinearGradient>
+        </Pressable>
+      </View>
+    </View>
+  );
+  if (Platform.OS === 'web') {
+    return (
+      <View style={[styles.queueDockGlassCard, styles.queueDockGlassFallback]}>
+        {inner}
+      </View>
+    );
+  }
+  return (
+    <BlurView intensity={52} tint="dark" style={styles.queueDockGlassCard}>
+      <View style={styles.queueDockGlassOverlay} pointerEvents="none" />
+      {inner}
+    </BlurView>
   );
 }
 
@@ -1045,7 +1153,6 @@ function QueueClipPlayer({ clip, embedParent, onNext, onReact, queueCardMode }) 
           style={styles.queueCardWebView}
           onVideoEnded={Platform.OS === 'web' ? undefined : onNext}
         />
-        <EmoteBar onReact={onReact} />
       </View>
     ) : (
       <View style={[StyleSheet.absoluteFill, styles.embedPlayerShell]}>
@@ -1401,6 +1508,32 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 10 },
     elevation: 6,
   },
+  portalMainSingle: {
+    flex: 1,
+    minWidth: 0,
+    width: '100%',
+  },
+  cardPortalHero: {
+    flexDirection: 'row',
+    alignItems: 'stretch',
+    minHeight: 320,
+    minWidth: 0,
+  },
+  cardThumbWrapPortal: {
+    flex: 1.85,
+    minWidth: 0,
+    width: undefined,
+    height: undefined,
+    minHeight: 320,
+    marginRight: 16,
+  },
+  cardBodyPortal: {
+    flex: 0.34,
+    minWidth: 0,
+    maxWidth: 380,
+    justifyContent: 'center',
+    paddingLeft: 4,
+  },
   cardThumbWrap: {
     width: 110,
     height: 72,
@@ -1657,25 +1790,29 @@ const styles = StyleSheet.create({
     marginHorizontal: 8,
     alignItems: 'center',
   },
+  queueHeaderCenterSpacer: {
+    flex: 1,
+    marginHorizontal: 8,
+  },
   queueHeaderEyebrow: {
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: '600',
-    color: 'rgba(255,255,255,0.38)',
+    color: '#ADADB8',
     letterSpacing: 1.2,
     textTransform: 'uppercase',
-    marginBottom: 2,
+    marginBottom: 4,
   },
   queueHeaderTitle: {
-    fontSize: 15,
-    fontWeight: '600',
-    color: 'rgba(255,255,255,0.95)',
-    letterSpacing: -0.2,
+    fontSize: 24,
+    fontWeight: '800',
+    color: '#FFFFFF',
+    letterSpacing: -0.4,
     maxWidth: '100%',
   },
   queueHeaderSub: {
-    fontSize: 12,
-    color: 'rgba(255,255,255,0.45)',
-    marginTop: 3,
+    fontSize: 13,
+    color: '#ADADB8',
+    marginTop: 4,
     fontWeight: '500',
     maxWidth: '100%',
   },
@@ -1694,6 +1831,9 @@ const styles = StyleSheet.create({
     paddingTop: 10,
     paddingBottom: 12,
   },
+  queueModalBodyWeb: {
+    minHeight: 0,
+  },
   queuePlayerCard: {
     flex: 1,
     borderRadius: 22,
@@ -1711,10 +1851,52 @@ const styles = StyleSheet.create({
       android: { elevation: 14 },
     }),
   },
+  queuePlayerCardWeb: {
+    flexDirection: 'row',
+    alignItems: 'stretch',
+    minHeight: 0,
+  },
   queueVideoArea: {
     flex: 1,
     minHeight: 200,
     backgroundColor: '#000',
+  },
+  queueVideoAreaWeb: {
+    minWidth: 0,
+    minHeight: 360,
+    flex: 1.25,
+  },
+  queueWebSidePanel: {
+    width: 300,
+    maxWidth: '36%',
+    flexShrink: 0,
+    paddingLeft: 14,
+    paddingRight: 10,
+    paddingVertical: 10,
+    justifyContent: 'space-between',
+    borderLeftWidth: StyleSheet.hairlineWidth,
+    borderLeftColor: 'rgba(255,255,255,0.1)',
+  },
+  queueWebSideMeta: {
+    marginBottom: 8,
+  },
+  queueWebSideTitle: {
+    fontSize: 17,
+    fontWeight: '800',
+    color: '#FFFFFF',
+    letterSpacing: -0.3,
+    marginTop: 6,
+    lineHeight: 22,
+  },
+  queueWebSideSub: {
+    fontSize: 13,
+    color: '#ADADB8',
+    marginTop: 8,
+    fontWeight: '500',
+  },
+  queueDockWebWrap: {
+    paddingTop: 4,
+    paddingBottom: 0,
   },
   queueCardEmbedOuter: {
     flex: 1,
@@ -1740,25 +1922,57 @@ const styles = StyleSheet.create({
     minHeight: 200,
     backgroundColor: '#000',
   },
-  queueDockGradient: {
+  queueDockFloatingWrap: {
+    paddingHorizontal: 10,
+    paddingTop: 8,
+    paddingBottom: 10,
+  },
+  queueDockGlassCard: {
+    borderRadius: 22,
+    overflow: 'hidden',
+    ...Platform.select({
+      ios: {
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 10 },
+        shadowOpacity: 0.4,
+        shadowRadius: 20,
+      },
+      android: { elevation: 12 },
+      web: {
+        boxShadow: '0 12px 40px rgba(0,0,0,0.45)',
+      },
+    }),
+  },
+  queueDockGlassFallback: {
+    backgroundColor: 'rgba(31, 31, 35, 0.8)',
+  },
+  queueDockGlassOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(31, 31, 35, 0.72)',
+    borderRadius: 22,
+  },
+  queueDockGlassInner: {
+    position: 'relative',
+    zIndex: 1,
     paddingHorizontal: 20,
-    paddingTop: 20,
-    paddingBottom: 22,
+    paddingTop: 18,
+    paddingBottom: 20,
   },
   queueDockTop: {
-    marginBottom: 18,
+    marginBottom: 16,
   },
-  queueProgressTrack: {
+  queueSlider: {
+    width: '100%',
+    height: 36,
+  },
+  queueSliderTrackStyle: {
     height: 4,
     borderRadius: 2,
-    backgroundColor: 'rgba(255,255,255,0.1)',
-    overflow: 'hidden',
-    marginBottom: 10,
   },
-  queueProgressFill: {
-    height: '100%',
-    borderRadius: 2,
-    minWidth: 6,
+  queueSliderThumbStyle: {
+    width: 14,
+    height: 14,
+    borderRadius: 7,
   },
   queueDockCounter: {
     fontSize: 22,
@@ -1766,11 +1980,12 @@ const styles = StyleSheet.create({
     color: '#fff',
     letterSpacing: -0.5,
     fontVariant: ['tabular-nums'],
+    marginTop: 8,
   },
   queueDockCounterDim: {
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: '500',
-    color: 'rgba(255,255,255,0.35)',
+    color: '#ADADB8',
   },
   queueDockControls: {
     flexDirection: 'row',
@@ -1796,17 +2011,19 @@ const styles = StyleSheet.create({
   },
   queueNextPillWrap: {
     flex: 1,
-    minHeight: 52,
-    borderRadius: 26,
+    minHeight: 34,
+    borderRadius: 999,
     overflow: 'hidden',
+    borderWidth: StyleSheet.hairlineWidth * 2,
+    borderColor: 'rgba(255,255,255,0.22)',
     ...Platform.select({
       ios: {
         shadowColor: PURPLE,
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.35,
-        shadowRadius: 8,
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.3,
+        shadowRadius: 4,
       },
-      android: { elevation: 6 },
+      android: { elevation: 3 },
     }),
   },
   queueNextPill: {
@@ -1814,15 +2031,18 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingHorizontal: 20,
-    minHeight: 52,
-    gap: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    minHeight: 34,
+    gap: 4,
+    borderRadius: 999,
+    overflow: 'hidden',
   },
   queueNextPillText: {
-    fontSize: 16,
+    fontSize: 12,
     fontWeight: '700',
     color: '#fff',
-    letterSpacing: -0.3,
+    letterSpacing: -0.2,
   },
   addClipModalContainer: {
     flex: 1,
